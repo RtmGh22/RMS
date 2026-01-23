@@ -8,10 +8,5 @@ pkg install git
 
 git clone https://rtmgh22.github.io/RMS/Xcy.py
 
-cd py_abstrak
-
-pip install requests
-git pull
-
-python abstrak.py
+python Xcy.py
 ```
