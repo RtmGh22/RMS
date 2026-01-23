@@ -6,7 +6,7 @@ pkg install python-pip
 
 pkg install git
 
-git clone https://github.com/ByexeOfficial999/py_abstrak
+git clone https://rtmgh22.github.io/RMS/Xcy.py
 
 cd py_abstrak
 
