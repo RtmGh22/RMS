@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Modern Face Skeleton</title>
+    
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js" crossorigin="anonymous"></script>
+
+    <style>
+        /* CSS RESET & MODERN STYLE */
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: #121212; /* Dark Mode Modern */
+            color: white;
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            overflow: hidden;
+        }
+
+        h1 {
+            font-weight: 300;
+            font-size: 1.2rem;
+            letter-spacing: 2px;
+            margin-bottom: 20px;
+            text-transform: uppercase;
+            color: #a0a0a0;
+        }
+
+        /* Container Kamera */
+        .camera-container {
+            position: relative;
+            width: 100%;
+            max-width: 640px; /* Lebar maksimal agar tidak pecah di desktop */
+            aspect-ratio: 4/3; /* Default aspect ratio, akan menyesuaikan via JS */
+            background: #000;
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            border: 1px solid #333;
+        }
+
+        /* Video dan Canvas ditumpuk */
+        .input_video, .output_canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover; /* Memastikan full container */
+            transform: scaleX(-1); /* Mirror effect untuk kamera depan */
+        }
+
+        /* Loading Spinner */
+        .loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #00bcd4;
+            font-size: 0.9rem;
+            z-index: 10;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .spinner {
+            width: 30px;
+            height: 30px;
+            border: 3px solid rgba(255,255,255,0.1);
+            border-top-color: #00bcd4;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Footer Credit */
+        .footer {
+            margin-top: 20px;
+            font-size: 0.7rem;
+            color: #444;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Face Skeleton AI</h1>
+
+    <div class="camera-container">
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <span>Memuat Model AI...</span>
+        </div>
+
+        <video class="input_video" playsinline muted></video>
+        
+        <canvas class="output_canvas"></canvas>
+    </div>
+
+    <div class="footer">Real-time Face Mesh Tracking</div>
+
+    <script>
+        const videoElement = document.getElementsByClassName('input_video')[0];
+        const canvasElement = document.getElementsByClassName('output_canvas')[0];
+        const canvasCtx = canvasElement.getContext('2d');
+        const loadingScreen = document.getElementById('loading');
+
+        // Fungsi ketika hasil deteksi wajah didapatkan
+        function onResults(results) {
+            // Sembunyikan loading jika sudah ada hasil
+            if(results.multiFaceLandmarks && results.multiFaceLandmarks.length > 0) {
+                loadingScreen.style.display = 'none';
+            }
+
+            // Atur ukuran canvas agar sesuai dengan video asli
+            canvasElement.width = videoElement.videoWidth;
+            canvasElement.height = videoElement.videoHeight;
+
+            canvasCtx.save();
+            canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+            
+            // Gambar feed video asli
+            canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
+
+            if (results.multiFaceLandmarks) {
+                for (const landmarks of results.multiFaceLandmarks) {
+                    // 1. Gambar Jaring Wajah (Tesselation) - Garis Tipis Modern
+                    drawConnectors(canvasCtx, landmarks, FACEMESH_TESSELATION,
+                                   {color: '#00F0FF20', lineWidth: 0.5}); // Cyan transparan tipis
+                    
+                    // 2. Gambar Mata (Biar lebih jelas)
+                    drawConnectors(canvasCtx, landmarks, FACEMESH_RIGHT_EYE, {color: '#00F0FF', lineWidth: 1});
+                    drawConnectors(canvasCtx, landmarks, FACEMESH_LEFT_EYE, {color: '#00F0FF', lineWidth: 1});
+                    
+                    // 3. Gambar Alis
+                    drawConnectors(canvasCtx, landmarks, FACEMESH_RIGHT_EYEBROW, {color: '#00F0FF', lineWidth: 1});
+                    drawConnectors(canvasCtx, landmarks, FACEMESH_LEFT_EYEBROW, {color: '#00F0FF', lineWidth: 1});
+
+                    // 4. Gambar Bibir
+                    drawConnectors(canvasCtx, landmarks, FACEMESH_LIPS, {color: '#00F0FF', lineWidth: 1});
+                    
+                    // 5. Gambar Oval Wajah (Outline)
+                    drawConnectors(canvasCtx, landmarks, FACEMESH_FACE_OVAL, {color: '#FFFFFF', lineWidth: 1});
+                }
+            }
+            canvasCtx.restore();
+        }
+
+        // Inisialisasi FaceMesh
+        const faceMesh = new FaceMesh({locateFile: (file) => {
+            return `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`;
+        }});
+
+        faceMesh.setOptions({
+            maxNumFaces: 1, // Hanya mendeteksi 1 wajah agar fokus
+            refineLandmarks: true, // Lebih akurat di mata dan bibir
+            minDetectionConfidence: 0.5,
+            minTrackingConfidence: 0.5
+        });
+
+        faceMesh.onResults(onResults);
+
+        // Menggunakan Camera Utils untuk otomatis handle kamera
+        const camera = new Camera(videoElement, {
+            onFrame: async () => {
+                await faceMesh.send({image: videoElement});
+            },
+            width: 1280,
+            height: 720,
+            facingMode: "user" // Kamera Depan
+        });
+        
+        camera.start();
+    </script>
+</body>
+</html>
